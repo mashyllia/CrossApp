@@ -11,7 +11,13 @@ if (!File.Exists(path))
     return 1;
 }
 
-ImportResult<ProductDto> result = ProductCsvImporter.Load(path);
+// Вибір імпортера за розширенням файлу (.csv /.json) через switch expression
+ImportResult<ProductDto> result = Path.GetExtension(path).ToLowerInvariant() switch
+{
+    ".csv" => ProductCsvImporter.Load(path),
+    ".json" => ProductJsonImporter.Load(path),
+    var ext => throw new NotSupportedException($"Формат файлу '{ext}' не підтримується")
+};
 
 Console.WriteLine($"Завантажено записів: {result.Items.Count}");
 foreach (ProductDto p in result.Items.Take(5))
@@ -21,11 +27,17 @@ foreach (ProductDto p in result.Items.Take(5))
 
 if (result.Errors.Count > 0)
 {
-    Console.WriteLine($"Пропущено рядків: {result.Errors.Count}");
+    Console.WriteLine($"Пропущено рядків/записів: {result.Errors.Count}");
     foreach (string e in result.Errors)
     {
         Console.WriteLine($"  ! {e}");
     }
 }
+
+// Статистика імпорту одним рядком (усього / прийнято / пропущено / % помилок)
+int total = result.Items.Count + result.Errors.Count;
+double errorPercent = total > 0 ? (double)result.Errors.Count / total * 100 : 0;
+Console.WriteLine(new string('-', 60));
+Console.WriteLine($"Статистика: Усього {total} | Прийнято {result.Items.Count} | Пропущено {result.Errors.Count} | Помилок: {errorPercent:F1}%");
 
 return 0;
