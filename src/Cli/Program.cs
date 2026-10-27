@@ -1,34 +1,31 @@
-﻿using Core;
-using System.Text.Json;
+﻿using Core.Dto;
+using Core.Import;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-// Перевіряємо, чи є прапорець "--json" в аргументах
-bool isJson = args.Contains("--json");
+string path = args.Length > 0 ? args[0] : Path.Combine("data", "sample.csv");
 
-// Збираємо звіт із бібліотеки Core
-EnvironmentReport report = EnvironmentInfo.Collect();
+if (!File.Exists(path))
+{
+    Console.WriteLine($"Файл не знайдено: {Path.GetFullPath(path)}");
+    return 1;
+}
 
-if (isJson)
+ImportResult<ProductDto> result = ProductCsvImporter.Load(path);
+
+Console.WriteLine($"Завантажено записів: {result.Items.Count}");
+foreach (ProductDto p in result.Items.Take(5))
 {
-    // Виводимо все одним JSON-рядком
-    string jsonString = JsonSerializer.Serialize(report);
-    Console.WriteLine(jsonString);
+    Console.WriteLine($"  {p.Id,-6} {p.Name,-30} {p.Price,10:F2} грн");
 }
-else
+
+if (result.Errors.Count > 0)
 {
-    // Звичайний вивід
-    Console.WriteLine($"{report.Application} — практикум з крос-платформного програмування");
-    Console.WriteLine($"Студентка: {report.Student}");
-    Console.WriteLine(new string('-', 52));
-    Console.WriteLine($"ОС (OSDescription) : {report.OsDescription}");
-    Console.WriteLine($"ОС (Environment)   : {report.OsVersion}");
-    Console.WriteLine($"Архітектура процесу: {report.ProcessArchitecture}");
-    Console.WriteLine($"Версія .NET (CLR)  : {report.DotNetVersion}");
-    Console.WriteLine($"Runtime            : {report.FrameworkDescription}");
-    Console.WriteLine($"RID (визначено)    : {report.DetectedRid}");
-    Console.WriteLine($"RID (від .NET)     : {report.ReportedRid}");
-    Console.WriteLine($"Каталог застосунку : {report.BaseDirectory}");
-    Console.WriteLine(new string('-', 52));
-    Console.WriteLine($"Предметна область  : {report.Domain}");
+    Console.WriteLine($"Пропущено рядків: {result.Errors.Count}");
+    foreach (string e in result.Errors)
+    {
+        Console.WriteLine($"  ! {e}");
+    }
 }
+
+return 0;
