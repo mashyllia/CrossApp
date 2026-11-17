@@ -29,6 +29,18 @@ RID | Режим | Розмір publish | Потрібен runtime
 osx-arm64 | self-contained | ~75-83 МБ | ні
 osx-arm64 | framework-dependent | ~180 КБ | так (.NET 10)
 
+lab4
+## Інваріанти доменної моделі (Лабораторна робота №4)
+* **Order (Замовлення):**
+  * Номер замовлення (`Id`) та ідентифікатор клієнта (`CustomerId`) не можуть бути порожніми (`ArgumentException`).
+  * Неможливо додати новий рядок до вже підтвердженого замовлення (`InvalidOperationException`).
+  * Неможливо підтвердити порожнє замовлення або підтвердити його повторно (`InvalidOperationException`).
+  * Колекція рядків `Lines` захищена від зовнішніх змін (`IReadOnlyList<OrderLine>`).
+* **OrderLine (Рядок замовлення):**
+  * Ідентифікатор (`ProductId`) та назва товару (`ProductName`) обов'язкові (`ArgumentException`).
+  * Ціна товару не може бути від'ємною (`ArgumentOutOfRangeException`).
+  * Кількість товару в рядку має бути більшою за нуль (`ArgumentOutOfRangeException`).
+
  
 ## Запуск
 ```bash

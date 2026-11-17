@@ -1,43 +1,73 @@
-﻿using Core.Dto;
-using Core.Import;
+﻿using Core.Domain;
+using Core.Dto;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-string path = args.Length > 0 ? args[0] : Path.Combine("data", "sample.csv");
+Console.WriteLine("=== Сценарій 1: Успішна робота з доменом ===");
+Order order = Order.Create("ord-101", "CUST-01");
+Console.WriteLine("Створено: " + order);
 
-if (!File.Exists(path))
+order.AddLine("P-001", "Ноутбук Apple MacBook Air", 39999.00m, 1);
+order.AddLine("P-002", "Миша бездротова", 1200.50m, 2);
+Console.WriteLine("Після додавання товарів: " + order);
+foreach (var line in order.Lines)
 {
-    Console.WriteLine($"Файл не знайдено: {Path.GetFullPath(path)}");
-    return 1;
+    Console.WriteLine($"   - {line}");
 }
 
-// Вибір імпортера за розширенням файлу (.csv /.json) через switch expression
-ImportResult<ProductDto> result = Path.GetExtension(path).ToLowerInvariant() switch
-{
-    ".csv" => ProductCsvImporter.Load(path),
-    ".json" => ProductJsonImporter.Load(path),
-    var ext => throw new NotSupportedException($"Формат файлу '{ext}' не підтримується")
-};
+order.Confirm();
+Console.WriteLine("Після підтвердження: " + order);
 
-Console.WriteLine($"Завантажено записів: {result.Items.Count}");
-foreach (ProductDto p in result.Items.Take(5))
-{
-    Console.WriteLine($"  {p.Id,-6} {p.Name,-30} {p.Price,10:F2} грн");
-}
+// Перевірка мапінгу ToDto / FromDto
+OrderDto dto = order.ToDto();
+Order restoredOrder = Order.FromDto(dto);
+Console.WriteLine("Відновлено з DTO: " + restoredOrder);
+Console.WriteLine();
 
-if (result.Errors.Count > 0)
+Console.WriteLine("=== Сценарій 2: Порушення інваріантів ===");
+
+// 1. Помилки вхідних аргументів (ArgumentException / ArgumentOutOfRangeException)
+TryDo("Порожній ID замовлення", () => Order.Create("", "CUST-01"));
+TryDo("Кількість товару <= 0", () => 
 {
-    Console.WriteLine($"Пропущено рядків/записів: {result.Errors.Count}");
-    foreach (string e in result.Errors)
+    var tempOrder = Order.Create("ORD-102", "CUST-02");
+    tempOrder.AddLine("P-003", "Монітор", 14500m, 0);
+});
+TryDo("Від'ємна ціна товару", () => 
+{
+    var tempOrder = Order.Create("ORD-102", "CUST-02");
+    tempOrder.AddLine("P-003", "Монітор", -500m, 1);
+});
+
+// 2. Помилки стану об'єкта (InvalidOperationException)
+TryDo("Підтвердження порожнього замовлення", () => 
+{
+    var emptyOrder = Order.Create("ORD-103", "CUST-03");
+    emptyOrder.Confirm();
+});
+TryDo("Додавання товару у вже підтверджене замовлення", () => 
+{
+    order.AddLine("P-004", "Клавіатура", 3200m, 1);
+});
+TryDo("Повторне підтвердження замовлення", () => 
+{
+    order.Confirm();
+});
+
+Console.WriteLine();
+Console.WriteLine("Стан першого замовлення після всіх спроб порушення:");
+Console.WriteLine(order);
+
+// Допоміжна функція для перехоплення винятків
+static void TryDo(string title, Action action)
+{
+    try
     {
-        Console.WriteLine($"  ! {e}");
+        action();
+        Console.WriteLine($"[ПОМИЛКА] {title}: виняток НЕ спрацював — інваріант відсутній!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[ОК] {title} -> {ex.GetType().Name}: {ex.Message}");
     }
 }
-
-// Статистика імпорту одним рядком (усього / прийнято / пропущено / % помилок)
-int total = result.Items.Count + result.Errors.Count;
-double errorPercent = total > 0 ? (double)result.Errors.Count / total * 100 : 0;
-Console.WriteLine(new string('-', 60));
-Console.WriteLine($"Статистика: Усього {total} | Прийнято {result.Items.Count} | Пропущено {result.Errors.Count} | Помилок: {errorPercent:F1}%");
-
-return 0;
