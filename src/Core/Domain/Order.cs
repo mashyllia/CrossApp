@@ -8,18 +8,17 @@ public sealed class Order
 
     public string Id { get; }
     public string CustomerId { get; }
-    public bool IsConfirmed { get; private set; }
+    public OrderStatus Status { get; private set; }
     public IReadOnlyList<OrderLine> Lines => _lines.AsReadOnly();
     public decimal Total => _lines.Sum(line => line.LineTotal);
 
-    private Order(string id, string customerId, bool isConfirmed = false)
+    private Order(string id, string customerId, OrderStatus status = OrderStatus.Draft)
     {
         Id = id;
         CustomerId = customerId;
-        IsConfirmed = isConfirmed;
+        Status = status;
     }
 
-    // Фабричний метод створення нового замовлення
     public static Order Create(string id, string customerId)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -31,39 +30,55 @@ public sealed class Order
         return new Order(id.Trim().ToUpperInvariant(), customerId.Trim());
     }
 
-    // Метод зміни стану 1: додавання рядка до замовлення
     public void AddLine(string productId, string productName, decimal price, int quantity)
     {
-        if (IsConfirmed)
+        if (Status != OrderStatus.Draft)
             throw new InvalidOperationException(
-                $"Замовлення {Id} вже підтверджене, додавати нові товари не можна");
+                $"Не можна додавати товари до замовлення {Id} у статусі {Status}");
 
-        // Делегуємо перевірку параметрів рядка фабриці OrderLine
         OrderLine newLine = OrderLine.Create(productId, productName, price, quantity);
         _lines.Add(newLine);
     }
 
-    // Метод зміни стану 2: підтвердження замовлення
     public void Confirm()
     {
-        if (IsConfirmed)
-            throw new InvalidOperationException($"Замовлення {Id} вже підтверджене");
+        EnsureTransition(OrderStatus.Confirmed);
 
         if (_lines.Count == 0)
             throw new InvalidOperationException($"Не можна підтвердити порожнє замовлення {Id}");
 
-        IsConfirmed = true;
+        Status = OrderStatus.Confirmed;
     }
 
-    // Мапінг у DTO (для збереження у сховищі на тижні 5)
+    public void Cancel()
+    {
+        EnsureTransition(OrderStatus.Cancelled);
+        Status = OrderStatus.Cancelled;
+    }
+
+    // Перевірка допустимих переходів стану через switch expression
+    private void EnsureTransition(OrderStatus next)
+    {
+        bool isAllowed = (Status, next) switch
+        {
+            (OrderStatus.Draft, OrderStatus.Confirmed) => true,
+            (OrderStatus.Draft, OrderStatus.Cancelled) => true,
+            (OrderStatus.Confirmed, OrderStatus.Cancelled) => true,
+            _ => false
+        };
+
+        if (!isAllowed)
+            throw new InvalidOperationException(
+                $"Перехід замовлення {Id} зі статусу '{Status}' у '{next}' заборонений");
+    }
+
     public OrderDto ToDto() => new(
         Id,
         CustomerId,
-        IsConfirmed,
+        Status.ToString(),
         _lines.Select(l => l.ToDto()).ToList()
     );
 
-    // Відновлення з DTO через фабрику (проходить ті самі перевірки!)
     public static Order FromDto(OrderDto dto)
     {
         Order order = Create(dto.Id, dto.CustomerId);
@@ -71,16 +86,18 @@ public sealed class Order
         {
             order.AddLine(lineDto.ProductId, lineDto.ProductName, lineDto.Price, lineDto.Quantity);
         }
-        if (dto.IsConfirmed)
-        {
+
+        if (!Enum.TryParse<OrderStatus>(dto.Status, ignoreCase: true, out var targetStatus))
+            throw new ArgumentException($"Невідомий статус замовлення: '{dto.Status}'");
+
+        if (targetStatus == OrderStatus.Confirmed)
             order.Confirm();
-        }
+        else if (targetStatus == OrderStatus.Cancelled)
+            order.Cancel();
+
         return order;
     }
 
-    public override string ToString()
-    {
-        string status = IsConfirmed ? "Підтверджено" : "Чернетка";
-        return $"Замовлення {Id} (Клієнт: {CustomerId}) | Статус: {status} | Позицій: {_lines.Count} | Сума: {Total:F2} грн";
-    }
+    public override string ToString() =>
+        $"Замовлення {Id} (Клієнт: {CustomerId}) | Статус: {Status} | Позицій: {_lines.Count} | Сума: {Total:F2} грн";
 }
