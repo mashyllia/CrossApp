@@ -8,7 +8,7 @@ public sealed class Order
 
     public string Id { get; }
     public string CustomerId { get; }
-    public OrderStatus Status { get; private set; }
+    public OrderStatus Status { get; private set; } 
     public IReadOnlyList<OrderLine> Lines => _lines.AsReadOnly();
     public decimal Total => _lines.Sum(line => line.LineTotal);
 
