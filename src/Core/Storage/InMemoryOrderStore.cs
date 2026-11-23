@@ -12,6 +12,13 @@ public sealed class InMemoryOrderStore(IEnumerable<Order>? seed = null) : IOrder
 
     public Order? GetById(string id) => _items.GetValueOrDefault(id);
 
+    // Ось сюди додано новий метод пошуку:
+    public IReadOnlyList<Order> FindWhere(Func<Order, bool> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        return _items.Values.Where(predicate).ToList();
+    }
+
     public void Add(Order item)
     {
         ArgumentNullException.ThrowIfNull(item);

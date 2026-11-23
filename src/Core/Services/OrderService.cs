@@ -39,4 +39,6 @@ public sealed class OrderService(IOrderStore store)
     public IReadOnlyList<Order> All() => _store.List();
 
     public Order? Find(string id) => _store.GetById(id);
+    
+    public IReadOnlyList<Order> FindWhere(Func<Order, bool> predicate) => _store.FindWhere(predicate);
 }

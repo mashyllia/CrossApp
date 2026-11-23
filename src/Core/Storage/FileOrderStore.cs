@@ -48,6 +48,14 @@ public sealed class FileOrderStore(string path) : IOrderStore
         return _cache.GetValueOrDefault(id);
     }
 
+    // Ось сюди додано новий метод пошуку:
+    public IReadOnlyList<Order> FindWhere(Func<Order, bool> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        EnsureLoaded();
+        return _cache.Values.Where(predicate).ToList();
+    }
+
     public void Add(Order item)
     {
         ArgumentNullException.ThrowIfNull(item);
