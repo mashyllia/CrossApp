@@ -3,6 +3,8 @@ using Core.Abstractions;
 using Core.Events;
 using Core.Services;
 using Core.Storage;
+using Cli.Notifications;
+using Core.Import;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
@@ -76,4 +78,26 @@ var expensiveOrders = service.FindAll(o => o.Total > 5000m);
 foreach (var o in expensiveOrders)
 {
     Console.WriteLine($"  {o.Id,-10} | Клієнт: {o.CustomerId,-8} | Статус: {o.Status,-10} | Сума: {o.Total,10:F2} грн");
+}
+
+Console.WriteLine();
+Console.WriteLine("=== Додаткове завдання 1: INotificationSink через ручний DI ===");
+INotificationSink sink = args.Contains("--file-sink")
+    ? new FileSink(logPath)
+    : new ConsoleSink();
+
+var diService = new OrderService(store, sink);
+var diOrder = diService.CreateOrder("CUST-88");
+diService.AddLine(diOrder.Id, "P-005", "Кабель USB-C", 450.00m, 3);
+
+Console.WriteLine();
+Console.WriteLine("=== Додаткове завдання 2: Action<string> при імпорті CSV ===");
+string csvPath = Path.Combine("data", "sample.csv");
+if (File.Exists(csvPath))
+{
+    var importResult = ProductCsvImporter.Load(
+        csvPath,
+        onSkipped: reason => Console.WriteLine($"  [Пропущено під час імпорту] {reason}")
+    );
+    Console.WriteLine($"Успішно імпортовано товарів: {importResult.Items.Count}");
 }

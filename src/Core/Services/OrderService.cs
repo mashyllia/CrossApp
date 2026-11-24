@@ -4,18 +4,27 @@ using Core.Events;
 
 namespace Core.Services;
 
-public sealed class OrderService(IOrderStore store)
+public sealed class OrderService(IOrderStore store, INotificationSink? sink = null)
 {
     private readonly IOrderStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly INotificationSink? _sink = sink;
 
     public event EventHandler<OrderChangedEventArgs>? Changed;
 
-    private void OnChanged(Order order, OrderChangeKind kind) =>
-        Changed?.Invoke(this, new OrderChangedEventArgs(
+    private void OnChanged(Order order, OrderChangeKind kind)
+    {
+        var args = new OrderChangedEventArgs(
             order.Id,
             kind,
             order.Lines.Count,
-            order.Total));
+            order.Total);
+
+        // 1. Виклик через доменну подію (Observer)
+        Changed?.Invoke(this, args);
+
+        // 2. Виклик через впроваджений інтерфейс INotificationSink (ручний DI)
+        _sink?.Notify(args);
+    }
 
     public Order CreateOrder(string customerId, string? customId = null)
     {
@@ -25,7 +34,7 @@ public sealed class OrderService(IOrderStore store)
 
         var order = Order.Create(id, customerId);
         _store.Add(order);
-        OnChanged(order, OrderChangeKind.OrderCreated); // після зміни, не до
+        OnChanged(order, OrderChangeKind.OrderCreated);
         return order;
     }
 
@@ -53,7 +62,6 @@ public sealed class OrderService(IOrderStore store)
 
     public Order? Find(string id) => _store.GetById(id);
 
-    // Пошук за предикатом (делегат Func замість події)
     public IReadOnlyList<Order> FindAll(Func<Order, bool> predicate)
     {
         ArgumentNullException.ThrowIfNull(predicate);
