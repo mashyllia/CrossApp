@@ -1,11 +1,21 @@
 using Core.Abstractions;
 using Core.Domain;
+using Core.Events;
 
 namespace Core.Services;
 
 public sealed class OrderService(IOrderStore store)
 {
     private readonly IOrderStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public event EventHandler<OrderChangedEventArgs>? Changed;
+
+    private void OnChanged(Order order, OrderChangeKind kind) =>
+        Changed?.Invoke(this, new OrderChangedEventArgs(
+            order.Id,
+            kind,
+            order.Lines.Count,
+            order.Total));
 
     public Order CreateOrder(string customerId, string? customId = null)
     {
@@ -15,6 +25,7 @@ public sealed class OrderService(IOrderStore store)
 
         var order = Order.Create(id, customerId);
         _store.Add(order);
+        OnChanged(order, OrderChangeKind.OrderCreated); // після зміни, не до
         return order;
     }
 
@@ -25,6 +36,7 @@ public sealed class OrderService(IOrderStore store)
 
         order.AddLine(productId, productName, price, quantity);
         _store.Update(order);
+        OnChanged(order, OrderChangeKind.LineAdded);
     }
 
     public void Confirm(string orderId)
@@ -34,11 +46,17 @@ public sealed class OrderService(IOrderStore store)
 
         order.Confirm();
         _store.Update(order);
+        OnChanged(order, OrderChangeKind.OrderConfirmed);
     }
 
     public IReadOnlyList<Order> All() => _store.List();
 
     public Order? Find(string id) => _store.GetById(id);
-    
-    public IReadOnlyList<Order> FindWhere(Func<Order, bool> predicate) => _store.FindWhere(predicate);
+
+    // Пошук за предикатом (делегат Func замість події)
+    public IReadOnlyList<Order> FindAll(Func<Order, bool> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        return _store.List().Where(predicate).ToList();
+    }
 }
